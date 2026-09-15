@@ -1,6 +1,6 @@
 <img width="1284" height="490" alt="PHOTO-2026-09-15-13-03-43" src="https://github.com/user-attachments/assets/a084c1a6-a12b-4f4b-a549-4e646a3a965d" />
 
-#Graft
+# Graft
 
 ### Deterministic, self-healing API integrations — without LLMs.
 
