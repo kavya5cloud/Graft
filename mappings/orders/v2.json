@@ -1,0 +1,29 @@
+{
+  "fields": {
+    "created_at": {
+      "path": "$.created_at",
+      "transform": "iso_datetime"
+    },
+    "customer_email": {
+      "path": "$.customer.email",
+      "transform": "identity"
+    },
+    "line_items": {
+      "path": "$.line_items[*].amount",
+      "transform": "identity"
+    },
+    "order_id": {
+      "path": "$.order_id",
+      "transform": "identity"
+    },
+    "shipping_city": {
+      "path": "$.shipping_address.city",
+      "transform": "identity"
+    },
+    "total": {
+      "path": "$.grand_total",
+      "transform": "identity"
+    }
+  },
+  "version": 2
+}
