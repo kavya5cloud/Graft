@@ -586,4 +586,4 @@ If those questions cannot be answered deterministically, Graft should **stop rat
 
 ## License
 
-Add your preferred open-source license before publishing a stable release.
+MIT License
