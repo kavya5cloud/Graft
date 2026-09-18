@@ -25,3 +25,212 @@ def test_name_only_is_not_enough():
     old=schema({"$.foo":p(["string"],["A","B"])})
     new=schema({"$.foobar":p(["string"],["X","Y"])})
     assert not any(x["kind"]=="RENAMED" for x in diff(old,new)["changes"])
+
+
+def test_rename_plus_retype():
+    old = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            }
+        }
+    }
+    new = {
+        "paths": {
+            "$.grand_total": {
+                "types": ["number"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            }
+        }
+    }
+
+    result = diff(old, new)
+
+    assert result["changes"][0]["kind"] == "RENAMED"
+    assert result["changes"][0]["old"] == "$.total"
+    assert result["changes"][0]["new"] == "$.grand_total"
+    assert result["changes"][0]["confidence"] >= 0.9
+
+
+def test_simultaneous_identical_type_renames():
+    old = {
+        "paths": {
+            "$.first_name": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["alice"],
+            },
+            "$.last_name": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["smith"],
+            },
+        }
+    }
+    new = {
+        "paths": {
+            "$.given_name": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["alice"],
+            },
+            "$.surname": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["smith"],
+            },
+        }
+    }
+
+    result = diff(old, new)
+
+    renames = {
+        (c["old"], c["new"])
+        for c in result["changes"]
+        if c["kind"] == "RENAMED"
+    }
+
+    assert renames == {
+        ("$.first_name", "$.given_name"),
+        ("$.last_name", "$.surname"),
+    }
+
+
+def test_genuine_removal():
+    old = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            }
+        }
+    }
+    new = {"paths": {}}
+
+    result = diff(old, new)
+
+    assert result["changes"] == [
+        {"kind": "REMOVED", "path": "$.total"}
+    ]
+
+
+def test_genuine_removal():
+    old = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            }
+        }
+    }
+    new = {"paths": {}}
+
+    result = diff(old, new)
+
+    assert result["changes"] == [
+        {"kind": "REMOVED", "path": "$.total"}
+    ]
+
+
+def test_nested_rename():
+    old = {
+        "paths": {
+            "$.customer.email": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["a@example.com"],
+            }
+        }
+    }
+    new = {
+        "paths": {
+            "$.customer.contact_email": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["a@example.com"],
+            }
+        }
+    }
+
+    result = diff(old, new)
+
+    rename = next(c for c in result["changes"] if c["kind"] == "RENAMED")
+
+    assert rename["old"] == "$.customer.email"
+    assert rename["new"] == "$.customer.contact_email"
+    assert rename["confidence"] >= 0.9
+
+
+def test_array_field_rename():
+    old = {
+        "paths": {
+            "$.line_items[*].amount": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["20.00", "22.50"],
+            }
+        }
+    }
+    new = {
+        "paths": {
+            "$.line_items[*].price": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["20.00", "22.50"],
+            }
+        }
+    }
+
+    result = diff(old, new)
+
+    rename = next(c for c in result["changes"] if c["kind"] == "RENAMED")
+
+    assert rename["old"] == "$.line_items[*].amount"
+    assert rename["new"] == "$.line_items[*].price"
+    assert rename["confidence"] >= 0.9
+
+
+def test_false_positive_same_type_unrelated_values():
+    old = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            }
+        }
+    }
+    new = {
+        "paths": {
+            "$.customer_name": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["alice"],
+            }
+        }
+    }
+
+    result = diff(old, new)
+
+    assert all(c["kind"] != "RENAMED" for c in result["changes"])
+    assert {"kind": "REMOVED", "path": "$.total"} in result["changes"]
+    assert {"kind": "ADDED", "path": "$.customer_name"} in result["changes"]
