@@ -166,3 +166,33 @@ def test_infer_array_field_presence_across_multiple_fixtures():
 
     assert field["types"] == ["integer"]
     assert field["presence_rate"] == 0.75
+
+
+def test_infer_nested_wildcard_presence_rate():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {
+            "body": {
+                "orders": [
+                    {"customer": {"email": "a@example.com"}},
+                    {"customer": {}},
+                ]
+            }
+        },
+        {
+            "body": {
+                "orders": [
+                    {"customer": {"email": "b@example.com"}},
+                    {"customer": {"email": "c@example.com"}},
+                ]
+            }
+        },
+    ]
+
+    schema = infer(fixtures)
+
+    field = schema["paths"]["$.orders[*].customer.email"]
+
+    assert field["types"] == ["string"]
+    assert field["presence_rate"] == 0.75
