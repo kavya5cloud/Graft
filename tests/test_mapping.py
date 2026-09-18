@@ -229,3 +229,39 @@ def test_transforms_preserve_null_values():
         result = apply_mapping({"value": None}, mapping)
 
         assert result["value"] is None
+
+
+def test_missing_array_path_returns_empty_list():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amounts": {
+                "path": "$.items[*].amount",
+                "transform": "identity"
+            }
+        }
+    }
+
+    result = apply_mapping({}, mapping)
+
+    assert result["amounts"] == []
+
+
+def test_empty_array_path_returns_empty_list():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amounts": {
+                "path": "$.items[*].amount",
+                "transform": "identity"
+            }
+        }
+    }
+
+    result = apply_mapping({"items": []}, mapping)
+
+    assert result["amounts"] == []
