@@ -183,3 +183,21 @@ def test_invalid_decimal_coercion_fails_loudly():
 
     with pytest.raises(InvalidOperation):
         apply_mapping({"amount": "not-a-decimal"}, mapping)
+
+
+def test_valid_decimal_coercion_is_deterministic():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amount": {
+                "path": "$.amount",
+                "transform": "to_decimal"
+            }
+        }
+    }
+
+    result = apply_mapping({"amount": "42.50"}, mapping)
+
+    assert result["amount"] == "42.50"
