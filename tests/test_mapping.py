@@ -92,3 +92,20 @@ def test_malformed_default_transform_is_rejected():
 
     with pytest.raises(ValueError):
         validate_mapping(malformed)
+
+
+def test_valid_default_transform_is_supported():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "status": {
+                "path": "$.status",
+                "transform": "default(unknown)"
+            }
+        }
+    }
+
+    assert apply_mapping({}, mapping)["status"] == "unknown"
+    assert apply_mapping({"status": "active"}, mapping)["status"] == "active"
