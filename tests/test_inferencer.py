@@ -59,3 +59,22 @@ def test_infer_nullable_field_preserves_concrete_type():
     assert field["types"] == ["null", "string"]
     assert field["nullable"] is True
     assert field["presence_rate"] == 1.0
+
+
+def test_infer_missing_field_tracks_presence_rate():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {"body": {"status": "active"}},
+        {"body": {}},
+        {"body": {"status": "inactive"}},
+        {"body": {}},
+    ]
+
+    schema = infer(fixtures)
+
+    field = schema["paths"]["$.status"]
+
+    assert field["types"] == ["string"]
+    assert field["nullable"] is False
+    assert field["presence_rate"] == 0.5
