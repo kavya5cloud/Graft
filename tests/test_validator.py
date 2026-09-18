@@ -15,3 +15,20 @@ def test_mapping_versions_are_distinct():
     assert v1["version"] == 1
     assert v2["version"] == 2
     assert v1 != v2
+
+
+def test_malformed_mapping_is_rejected():
+    import pytest
+    from graft.mapping import validate_mapping
+
+    malformed = {
+        "version": 2,
+        "fields": {
+            "total": {
+                "transform": "identity"
+            }
+        }
+    }
+
+    with pytest.raises(ValueError):
+        validate_mapping(malformed)
