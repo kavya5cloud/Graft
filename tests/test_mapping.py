@@ -291,3 +291,29 @@ def test_mixed_array_elements_preserve_positions():
     result = apply_mapping(body, mapping)
 
     assert result["amounts"] == [10, None, 30]
+
+
+def test_array_transform_applies_per_element():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amounts": {
+                "path": "$.items[*].amount",
+                "transform": "to_int"
+            }
+        }
+    }
+
+    body = {
+        "items": [
+            {"amount": "10"},
+            {"amount": "20"},
+            {"amount": "30"}
+        ]
+    }
+
+    result = apply_mapping(body, mapping)
+
+    assert result["amounts"] == [10, 20, 30]

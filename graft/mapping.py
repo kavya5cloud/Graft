@@ -49,6 +49,8 @@ def _transform(value, name):
         return value if value is not None else name[8:-1]
     if name not in TRANSFORMS: raise ValueError(f"Unknown transform: {name}")
     if value is None: return None
+    if isinstance(value, list):
+        return [_transform(item, name) for item in value]
     if name == "identity": return value
     if name == "to_decimal": return str(Decimal(str(value)))
     if name == "to_int": return int(value)
