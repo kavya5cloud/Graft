@@ -20,3 +20,9 @@ class HTTPProvider(Provider):
                 "headers": dict(response.headers),
                 "body": json.loads(response.read()),
             }
+
+
+def get_provider(name: str) -> Provider:
+    if name == "http":
+        return HTTPProvider()
+    raise ValueError(f"Unknown provider: {name}")

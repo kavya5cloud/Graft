@@ -6,7 +6,7 @@ from .differ import diff
 from .healer import propose
 from .validator import validate
 from .audit import record_audit
-from .provider import HTTPProvider
+from .provider import get_provider
 
 ROOT=Path.cwd(); STATE=ROOT/".graft"
 def read_json(p): return json.loads(Path(p).read_text())
@@ -15,7 +15,13 @@ def write_json(p,x): Path(p).parent.mkdir(parents=True,exist_ok=True); Path(p).w
 def cmd_record(a):
     if a.reset:
         shutil.rmtree(ROOT/"fixtures"/a.provider/a.endpoint, ignore_errors=True)
-    response = HTTPProvider().fetch(a.url)
+
+    try:
+        provider = get_provider(a.transport)
+    except ValueError as exc:
+        raise SystemExit(str(exc))
+
+    response = provider.fetch(a.url)
     print(record_pair(
         ROOT,
         a.provider,
@@ -154,7 +160,7 @@ def cmd_rollback(a):
 
 def main():
     p=argparse.ArgumentParser(prog="graft"); s=p.add_subparsers(dest="cmd",required=True)
-    r=s.add_parser("record"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("url"); r.add_argument("--reset",action="store_true"); r.set_defaults(fn=cmd_record)
+    r=s.add_parser("record"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("url"); r.add_argument("--reset",action="store_true"); r.add_argument("--transport",default="http"); r.set_defaults(fn=cmd_record)
     r=s.add_parser("snapshot"); r.add_argument("provider"); r.add_argument("endpoint"); r.set_defaults(fn=cmd_snapshot)
     r=s.add_parser("check"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("old"); r.set_defaults(fn=cmd_check)
     r=s.add_parser("propose"); r.add_argument("old_schema"); r.add_argument("new_schema"); r.add_argument("mapping"); r.add_argument("diff"); r.set_defaults(fn=cmd_propose)

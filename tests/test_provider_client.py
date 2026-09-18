@@ -44,13 +44,14 @@ def test_cli_record_uses_provider_response(tmp_path, monkeypatch):
                 "body": {"id": "ord_1"},
             }
 
-    monkeypatch.setattr(cli, "HTTPProvider", FakeProvider)
+    monkeypatch.setattr(cli, "get_provider", lambda name: FakeProvider())
 
     class Args:
         provider = "orders"
         endpoint = "orders"
         url = "http://example.test/orders/1"
         reset = False
+        transport = "http"
 
     cli.cmd_record(Args)
 
@@ -63,3 +64,36 @@ def test_cli_record_uses_provider_response(tmp_path, monkeypatch):
     recorded = json.loads(fixtures[0].read_text())
     assert recorded["status"] == 200
     assert recorded["body"] == {"id": "ord_1"}
+
+
+def test_get_provider_returns_http_provider():
+    from graft.provider import HTTPProvider, get_provider
+
+    provider = get_provider("http")
+
+    assert isinstance(provider, HTTPProvider)
+
+
+def test_get_provider_rejects_unknown_provider():
+    import pytest
+    from graft.provider import get_provider
+
+    with pytest.raises(ValueError, match="Unknown provider"):
+        get_provider("unknown")
+
+
+def test_cli_record_rejects_unknown_transport(tmp_path, monkeypatch, capsys):
+    import pytest
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+        url = "http://example.test/orders/1"
+        reset = False
+        transport = "nope"
+
+    with pytest.raises(SystemExit, match="Unknown provider: nope"):
+        cli.cmd_record(Args)
