@@ -8,9 +8,25 @@ DEFAULT_RE = re.compile(r"^default\((.*)\)$")
 
 
 def _tokens(path: str):
-    if path == "$": return []
-    if not path.startswith("$."): raise ValueError(f"Unsupported path: {path}")
-    return path[2:].split(".")
+    if path == "$":
+        return []
+
+    if not isinstance(path, str) or not path.startswith("$."):
+        raise ValueError(f"Unsupported path: {path}")
+
+    tokens = path[2:].split(".")
+
+    if any(
+        not token
+        or token == "[*]"
+        or token.count("[*]") > 1
+        or ("[" in token and not token.endswith("[*]"))
+        or ("]" in token and not token.endswith("[*]"))
+        for token in tokens
+    ):
+        raise ValueError(f"Unsupported path: {path}")
+
+    return tokens
 
 
 def get_path(obj: Any, path: str) -> Any:
@@ -45,6 +61,7 @@ def validate_mapping(mapping):
     if not isinstance(mapping.get("version"), int) or not isinstance(mapping.get("fields"), dict): raise ValueError("Invalid mapping document")
     for name, spec in mapping["fields"].items():
         if not isinstance(spec, dict) or "path" not in spec: raise ValueError(f"Missing path for {name}")
+        _tokens(spec["path"])
         transform = spec.get("transform", "identity")
         if transform not in TRANSFORMS and not DEFAULT_RE.fullmatch(transform): raise ValueError(f"Unknown transform: {transform}")
 

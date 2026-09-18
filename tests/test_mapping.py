@@ -56,3 +56,21 @@ def test_unsupported_transform_is_rejected():
 
     with pytest.raises(ValueError):
         validate_mapping(malformed)
+
+
+def test_malformed_json_path_is_rejected():
+    import pytest
+    from graft.mapping import validate_mapping
+
+    malformed = {
+        "version": 2,
+        "fields": {
+            "total": {
+                "path": "$.orders[",
+                "transform": "identity"
+            }
+        }
+    }
+
+    with pytest.raises(ValueError):
+        validate_mapping(malformed)
