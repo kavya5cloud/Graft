@@ -265,3 +265,29 @@ def test_empty_array_path_returns_empty_list():
     result = apply_mapping({"items": []}, mapping)
 
     assert result["amounts"] == []
+
+
+def test_mixed_array_elements_preserve_positions():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amounts": {
+                "path": "$.items[*].amount",
+                "transform": "identity"
+            }
+        }
+    }
+
+    body = {
+        "items": [
+            {"amount": 10},
+            {},
+            {"amount": 30}
+        ]
+    }
+
+    result = apply_mapping(body, mapping)
+
+    assert result["amounts"] == [10, None, 30]
