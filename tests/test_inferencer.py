@@ -304,3 +304,26 @@ def test_infer_array_type_is_preserved():
 
     assert schema["paths"]["$.items"]["types"] == ["array"]
     assert schema["paths"]["$.items[*]"]["types"] == ["integer"]
+
+
+def test_infer_mixed_array_element_types():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {
+            "body": {
+                "items": [1, "two", 3.5, True, None]
+            }
+        }
+    ])
+
+    field = schema["paths"]["$.items[*]"]
+
+    assert field["types"] == [
+        "boolean",
+        "integer",
+        "null",
+        "number",
+        "string",
+    ]
+    assert field["nullable"] is True
