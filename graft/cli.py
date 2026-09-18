@@ -1,4 +1,4 @@
-import argparse, json, os, shutil, tempfile, urllib.request
+import argparse, json, os, shutil, tempfile
 from pathlib import Path
 from .recorder import record_pair
 from .inferencer import infer, load_fixtures
@@ -6,6 +6,7 @@ from .differ import diff
 from .healer import propose
 from .validator import validate
 from .audit import record_audit
+from .provider import HTTPProvider
 
 ROOT=Path.cwd(); STATE=ROOT/".graft"
 def read_json(p): return json.loads(Path(p).read_text())
@@ -14,8 +15,14 @@ def write_json(p,x): Path(p).parent.mkdir(parents=True,exist_ok=True); Path(p).w
 def cmd_record(a):
     if a.reset:
         shutil.rmtree(ROOT/"fixtures"/a.provider/a.endpoint, ignore_errors=True)
-    with urllib.request.urlopen(a.url) as r: body=json.loads(r.read()); headers=dict(r.headers); status=r.status
-    print(record_pair(ROOT,a.provider,a.endpoint,{"method":"GET","url":a.url},{"status":status,"headers":headers,"body":body}))
+    response = HTTPProvider().fetch(a.url)
+    print(record_pair(
+        ROOT,
+        a.provider,
+        a.endpoint,
+        {"method": "GET", "url": a.url},
+        response,
+    ))
 
 def cmd_snapshot(a):
     write_json(ROOT/"snapshots"/a.provider/f"{a.endpoint}.json",infer(load_fixtures(ROOT/"fixtures"/a.provider/a.endpoint))); print("snapshot written")
