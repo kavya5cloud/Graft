@@ -196,3 +196,18 @@ def test_infer_nested_wildcard_presence_rate():
 
     assert field["types"] == ["string"]
     assert field["presence_rate"] == 0.75
+
+
+def test_infer_caps_value_fingerprints():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {"body": {"value": f"value-{i}"}}
+        for i in range(1100)
+    ]
+
+    schema = infer(fixtures)
+
+    fingerprints = schema["paths"]["$.value"]["value_fingerprint"]
+
+    assert len(fingerprints) == 1000
