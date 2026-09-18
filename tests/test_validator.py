@@ -32,3 +32,44 @@ def test_malformed_mapping_is_rejected():
 
     with pytest.raises(ValueError):
         validate_mapping(malformed)
+
+
+def test_validator_rejects_candidate_that_produces_null():
+    from graft.validator import validate
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity"
+            }
+        }
+    }
+
+    candidate_mapping = {
+        "version": 2,
+        "fields": {
+            "total": {
+                "path": "$.missing",
+                "transform": "identity"
+            }
+        }
+    }
+
+    fixtures = [
+        {
+            "body": {
+                "total": 42.5
+            }
+        }
+    ]
+
+    result = validate(
+        old_mapping,
+        candidate_mapping,
+        fixtures
+    )
+
+    assert result["valid"] is False
+    assert any("candidate produced null" in e for e in result["errors"])
