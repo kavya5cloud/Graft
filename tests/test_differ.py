@@ -348,3 +348,36 @@ def test_low_confidence_rename_is_not_proposed():
     )
 
     assert candidate["fields"]["total"]["path"] == "$.total"
+
+
+def test_real_inferred_rename_detected():
+    from graft.inferencer import infer
+
+    old = infer([
+        {
+            "body": {
+                "order_id": "ord_1001",
+                "total": "42.50",
+            }
+        }
+    ])
+
+    new = infer([
+        {
+            "body": {
+                "order_id": "ord_1001",
+                "grand_total": "42.50",
+            }
+        }
+    ])
+
+    result = diff(old, new)
+
+    rename = next(
+        c for c in result["changes"]
+        if c["kind"] == "RENAMED"
+    )
+
+    assert rename["old"] == "$.total"
+    assert rename["new"] == "$.grand_total"
+    assert rename["confidence"] >= 0.9

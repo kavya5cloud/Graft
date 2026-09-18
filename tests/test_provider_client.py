@@ -97,3 +97,60 @@ def test_cli_record_rejects_unknown_transport(tmp_path, monkeypatch, capsys):
 
     with pytest.raises(SystemExit, match="Unknown provider: nope"):
         cli.cmd_record(Args)
+
+
+def test_register_contract_persists_provider_endpoint():
+    import json
+    from graft.registry import register_contract
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+
+        path = register_contract(
+            root,
+            "orders",
+            "orders",
+            "snapshots/orders/orders.json",
+        )
+
+        registry = json.loads(path.read_text())
+
+        assert registry["orders/orders"] == {
+            "provider": "orders",
+            "endpoint": "orders",
+            "schema": "snapshots/orders/orders.json",
+        }
+
+
+def test_register_contract_is_idempotent():
+    import json
+    import tempfile
+    from pathlib import Path
+    from graft.registry import register_contract
+
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+
+        register_contract(
+            root,
+            "orders",
+            "orders",
+            "snapshots/orders/orders.json",
+        )
+
+        register_contract(
+            root,
+            "orders",
+            "orders",
+            "snapshots/orders/orders.json",
+        )
+
+        registry = json.loads(
+            (root / ".graft" / "contracts.json").read_text()
+        )
+
+        assert list(registry) == ["orders/orders"]
+        assert len(registry) == 1

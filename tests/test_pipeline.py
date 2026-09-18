@@ -430,3 +430,207 @@ def test_cli_audit_displays_audit_events(tmp_path, monkeypatch, capsys):
     assert '"action": "apply"' in output
     assert '"provider": "orders"' in output
     assert '"version": 2' in output
+
+
+def test_snapshot_registers_contract(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    fixture_dir = tmp_path / "fixtures" / "orders" / "orders"
+    fixture_dir.mkdir(parents=True)
+
+    fixture_dir.joinpath("fixture.json").write_text(
+        json.dumps({
+            "body": {
+                "order_id": "ord_1",
+                "total": "42.50",
+            }
+        })
+    )
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+
+    cli.cmd_snapshot(Args)
+
+    registry = json.loads(
+        (tmp_path / ".graft" / "contracts.json").read_text()
+    )
+
+    assert registry["orders/orders"]["provider"] == "orders"
+    assert registry["orders/orders"]["endpoint"] == "orders"
+    assert registry["orders/orders"]["schema"] == "snapshots/orders/orders.json"
+
+
+def test_check_detects_drift_from_latest_fixture(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "STATE", tmp_path / ".graft")
+
+    fixture_dir = tmp_path / "fixtures" / "orders" / "orders"
+    fixture_dir.mkdir(parents=True)
+
+    from graft.inferencer import _fingerprint_value
+
+    fingerprint = _fingerprint_value("42.50")
+
+    old_schema = {
+        "version": 1,
+        "paths": {
+            "$": {
+                "types": ["object"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [fingerprint],
+            }
+        },
+    }
+
+    fixture = {
+        "body": {
+            "grand_total": "42.50",
+        }
+    }
+
+    old_path = tmp_path / "old.json"
+    old_path.write_text(json.dumps(old_schema))
+    (fixture_dir / "latest.json").write_text(json.dumps(fixture))
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+        old = str(old_path)
+
+    cli.cmd_check(Args)
+
+    diff_result = json.loads(
+        (tmp_path / ".graft" / "last_diff.json").read_text()
+    )
+
+    assert diff_result["changes"]
+    assert diff_result["changes"][0]["kind"] == "RENAMED"
+
+
+def test_check_detects_drift_from_latest_fixture(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "STATE", tmp_path / ".graft")
+
+    fixture_dir = tmp_path / "fixtures" / "orders" / "orders"
+    fixture_dir.mkdir(parents=True)
+
+    from graft.inferencer import _fingerprint_value
+
+    fingerprint = _fingerprint_value("42.50")
+
+    old_schema = {
+        "version": 1,
+        "paths": {
+            "$": {
+                "types": ["object"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [fingerprint],
+            }
+        },
+    }
+
+    fixture = {
+        "body": {
+            "grand_total": "42.50",
+        }
+    }
+
+    old_path = tmp_path / "old.json"
+    old_path.write_text(json.dumps(old_schema))
+    (fixture_dir / "latest.json").write_text(json.dumps(fixture))
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+        old = str(old_path)
+
+    cli.cmd_check(Args)
+
+    diff_result = json.loads(
+        (tmp_path / ".graft" / "last_diff.json").read_text()
+    )
+
+    assert diff_result["changes"]
+    assert diff_result["changes"][0]["kind"] == "RENAMED"
+
+
+def test_check_resolves_registered_contract_without_old_path(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+    from graft.registry import register_contract
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "STATE", tmp_path / ".graft")
+
+    fixture_dir = tmp_path / "fixtures" / "orders" / "orders"
+    fixture_dir.mkdir(parents=True)
+
+    schema_path = tmp_path / "snapshots" / "orders" / "orders.json"
+    schema_path.parent.mkdir(parents=True)
+
+    schema = {
+        "version": 1,
+        "paths": {
+            "$": {
+                "types": ["object"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+        },
+    }
+
+    schema_path.write_text(json.dumps(schema))
+    register_contract(tmp_path, "orders", "orders", schema_path)
+
+    (fixture_dir / "latest.json").write_text(
+        json.dumps({"body": {"grand_total": "42.50"}})
+    )
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+        old = None
+
+    cli.cmd_check(Args)
+
+    diff_result = json.loads(
+        (tmp_path / ".graft" / "last_diff.json").read_text()
+    )
+
+    assert "$.total" in {
+        change.get("path")
+        for change in diff_result["changes"]
+        if change["kind"] == "REMOVED"
+    }

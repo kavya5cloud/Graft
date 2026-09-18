@@ -7,6 +7,7 @@ from .healer import propose
 from .validator import validate
 from .audit import record_audit
 from .provider import get_provider
+from .registry import register_contract
 
 ROOT=Path.cwd(); STATE=ROOT/".graft"
 def read_json(p): return json.loads(Path(p).read_text())
@@ -31,10 +32,57 @@ def cmd_record(a):
     ))
 
 def cmd_snapshot(a):
-    write_json(ROOT/"snapshots"/a.provider/f"{a.endpoint}.json",infer(load_fixtures(ROOT/"fixtures"/a.provider/a.endpoint))); print("snapshot written")
+    schema_path = ROOT / "snapshots" / a.provider / f"{a.endpoint}.json"
+
+    fixture_dir = ROOT / "fixtures" / a.provider / a.endpoint
+    fixtures = sorted(
+        fixture_dir.glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+    )
+
+    if not fixtures:
+        raise SystemExit("no fixtures found")
+
+    write_json(
+        schema_path,
+        infer([read_json(fixtures[-1])]),
+    )
+
+    register_contract(
+        ROOT,
+        a.provider,
+        a.endpoint,
+        schema_path.relative_to(ROOT),
+    )
+
+    print("snapshot written")
 
 def cmd_check(a):
-    old=read_json(a.old)
+    if a.old:
+        old_path = Path(a.old)
+    else:
+        registry_path = STATE / "contracts.json"
+
+        if not registry_path.exists():
+            raise SystemExit(
+                f"no registered contract for {a.provider}/{a.endpoint}"
+            )
+
+        registry = read_json(registry_path)
+        key = f"{a.provider}/{a.endpoint}"
+        contract = registry.get(key)
+
+        if not contract:
+            raise SystemExit(
+                f"no registered contract for {a.provider}/{a.endpoint}"
+            )
+
+        old_path = Path(contract["schema"])
+
+        if not old_path.is_absolute():
+            old_path = ROOT / old_path
+
+    old=read_json(old_path)
 
     fixture_dir=ROOT/"fixtures"/a.provider/a.endpoint
     fixtures=sorted(fixture_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
@@ -162,7 +210,7 @@ def main():
     p=argparse.ArgumentParser(prog="graft"); s=p.add_subparsers(dest="cmd",required=True)
     r=s.add_parser("record"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("url"); r.add_argument("--reset",action="store_true"); r.add_argument("--transport",default="http"); r.set_defaults(fn=cmd_record)
     r=s.add_parser("snapshot"); r.add_argument("provider"); r.add_argument("endpoint"); r.set_defaults(fn=cmd_snapshot)
-    r=s.add_parser("check"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("old"); r.set_defaults(fn=cmd_check)
+    r=s.add_parser("check"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("old", nargs="?"); r.set_defaults(fn=cmd_check)
     r=s.add_parser("propose"); r.add_argument("old_schema"); r.add_argument("new_schema"); r.add_argument("mapping"); r.add_argument("diff"); r.set_defaults(fn=cmd_propose)
     r=s.add_parser("validate"); r.add_argument("old"); r.add_argument("candidate"); r.add_argument("fixtures"); r.add_argument("--invariant",action="append"); r.set_defaults(fn=cmd_validate)
     r=s.add_parser("apply"); r.add_argument("provider"); r.add_argument("mapping"); r.set_defaults(fn=cmd_apply)
