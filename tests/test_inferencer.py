@@ -230,3 +230,14 @@ def test_infer_fingerprints_are_order_independent():
 
     assert first["paths"]["$.value"]["value_fingerprint"] == \
         second["paths"]["$.value"]["value_fingerprint"]
+
+
+def test_infer_schema_has_valid_version():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": {"id": 1}}
+    ])
+
+    assert isinstance(schema["version"], int)
+    assert schema["version"] == 1
