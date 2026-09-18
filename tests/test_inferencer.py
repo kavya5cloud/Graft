@@ -360,3 +360,15 @@ def test_infer_field_changing_between_object_and_array():
     field = schema["paths"]["$.data"]
 
     assert field["types"] == ["array", "object"]
+
+
+def test_infer_empty_object_records_object_without_children():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": {"metadata": {}}}
+    ])
+
+    assert schema["paths"]["$.metadata"]["types"] == ["object"]
+    assert "$.metadata" in schema["paths"]
+    assert "$.metadata[*]" not in schema["paths"]
