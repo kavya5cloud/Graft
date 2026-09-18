@@ -73,3 +73,63 @@ def test_validator_rejects_candidate_that_produces_null():
 
     assert result["valid"] is False
     assert any("candidate produced null" in e for e in result["errors"])
+
+def test_validator_rejects_candidate_that_drops_output_field():
+    from graft.validator import validate
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "id": {"path": "$.id", "transform": "identity"},
+            "total": {"path": "$.total", "transform": "identity"},
+        },
+    }
+
+    candidate_mapping = {
+        "version": 2,
+        "fields": {
+            "id": {"path": "$.id", "transform": "identity"},
+        },
+    }
+
+    fixtures = [
+        {
+            "body": {
+                "id": "ord_123",
+                "total": 42.5,
+            }
+        }
+    ]
+
+    result = validate(old_mapping, candidate_mapping, fixtures)
+
+    assert result["valid"] is False
+    assert any("dropped keys" in e for e in result["errors"])
+
+def test_validator_rejects_dropped_output_field_across_fixtures():
+    from graft.validator import validate
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "id": {"path": "$.id", "transform": "identity"},
+            "total": {"path": "$.total", "transform": "identity"},
+        },
+    }
+
+    candidate_mapping = {
+        "version": 2,
+        "fields": {
+            "id": {"path": "$.id", "transform": "identity"},
+        },
+    }
+
+    fixtures = [
+        {"body": {"id": "ord_1", "total": 10}},
+        {"body": {"id": "ord_2", "total": 25}},
+    ]
+
+    result = validate(old_mapping, candidate_mapping, fixtures)
+
+    assert result["valid"] is False
+    assert sum("dropped keys" in e for e in result["errors"]) == 2
