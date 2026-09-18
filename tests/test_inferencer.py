@@ -41,3 +41,21 @@ def test_infer_mixed_types_records_all_types():
         "string",
         "number",
     }
+
+
+def test_infer_nullable_field_preserves_concrete_type():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {"body": {"status": "active"}},
+        {"body": {"status": None}},
+        {"body": {"status": "inactive"}},
+    ]
+
+    schema = infer(fixtures)
+
+    field = schema["paths"]["$.status"]
+
+    assert field["types"] == ["null", "string"]
+    assert field["nullable"] is True
+    assert field["presence_rate"] == 1.0
