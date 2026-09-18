@@ -413,3 +413,21 @@ def test_infer_special_json_keys():
     assert schema["paths"]["$.user-id"]["types"] == ["integer"]
     assert schema["paths"]["$.first_name"]["types"] == ["string"]
     assert schema["paths"]["$.display name"]["types"] == ["string"]
+
+
+def test_infer_unicode_json_keys_and_values():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {
+            "body": {
+                "नाम": "काव्या",
+                "શહેર": "અમદાવાદ",
+                "status": "सक्रिय",
+            }
+        }
+    ])
+
+    assert schema["paths"]["$.नाम"]["types"] == ["string"]
+    assert schema["paths"]["$.શહેર"]["types"] == ["string"]
+    assert schema["paths"]["$.status"]["types"] == ["string"]
