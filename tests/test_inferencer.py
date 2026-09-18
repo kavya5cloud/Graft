@@ -93,3 +93,24 @@ def test_infer_empty_array_records_array_path():
     assert schema["paths"]["$.items"]["types"] == ["array"]
     assert "$.items[*]" in schema["paths"]
     assert schema["paths"]["$.items[*]"]["types"] == []
+
+
+def test_infer_nested_object_paths():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {
+            "body": {
+                "customer": {
+                    "id": 101,
+                    "name": "Alice"
+                }
+            }
+        }
+    ]
+
+    schema = infer(fixtures)
+
+    assert schema["paths"]["$.customer"]["types"] == ["object"]
+    assert schema["paths"]["$.customer.id"]["types"] == ["integer"]
+    assert schema["paths"]["$.customer.name"]["types"] == ["string"]
