@@ -327,3 +327,23 @@ def test_infer_mixed_array_element_types():
         "string",
     ]
     assert field["nullable"] is True
+
+
+def test_infer_nested_mixed_array_elements():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {
+            "body": {
+                "groups": [
+                    {"values": [1, 2]},
+                    {"values": ["three", "four"]},
+                ]
+            }
+        }
+    ])
+
+    field = schema["paths"]["$.groups[*].values[*]"]
+
+    assert field["types"] == ["integer", "string"]
+    assert field["nullable"] is False
