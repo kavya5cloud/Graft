@@ -211,3 +211,22 @@ def test_infer_caps_value_fingerprints():
     fingerprints = schema["paths"]["$.value"]["value_fingerprint"]
 
     assert len(fingerprints) == 1000
+
+
+def test_infer_fingerprints_are_order_independent():
+    from graft.inferencer import infer
+
+    first = infer([
+        {"body": {"value": "alpha"}},
+        {"body": {"value": "beta"}},
+        {"body": {"value": "gamma"}},
+    ])
+
+    second = infer([
+        {"body": {"value": "gamma"}},
+        {"body": {"value": "alpha"}},
+        {"body": {"value": "beta"}},
+    ])
+
+    assert first["paths"]["$.value"]["value_fingerprint"] == \
+        second["paths"]["$.value"]["value_fingerprint"]
