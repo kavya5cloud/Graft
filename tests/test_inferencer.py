@@ -395,3 +395,21 @@ def test_infer_deeply_nested_object_paths():
     assert schema["paths"]["$.account.profile"]["types"] == ["object"]
     assert schema["paths"]["$.account.profile.contact"]["types"] == ["object"]
     assert schema["paths"]["$.account.profile.contact.email"]["types"] == ["string"]
+
+
+def test_infer_special_json_keys():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {
+            "body": {
+                "user-id": 101,
+                "first_name": "Kavya",
+                "display name": "Kavya Shree",
+            }
+        }
+    ])
+
+    assert schema["paths"]["$.user-id"]["types"] == ["integer"]
+    assert schema["paths"]["$.first_name"]["types"] == ["string"]
+    assert schema["paths"]["$.display name"]["types"] == ["string"]
