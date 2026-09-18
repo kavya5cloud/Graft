@@ -431,3 +431,26 @@ def test_infer_unicode_json_keys_and_values():
     assert schema["paths"]["$.नाम"]["types"] == ["string"]
     assert schema["paths"]["$.શહેર"]["types"] == ["string"]
     assert schema["paths"]["$.status"]["types"] == ["string"]
+
+
+def test_unicode_value_fingerprints_are_deterministic():
+    from graft.inferencer import infer
+
+    values = ["કાવ્યા", "काव्या", "અમદાવાદ", "東京"]
+
+    first = infer([
+        {"body": {"value": value}}
+        for value in values
+    ])
+
+    second = infer([
+        {"body": {"value": value}}
+        for value in reversed(values)
+    ])
+
+    first_fp = first["paths"]["$.value"]["value_fingerprint"]
+    second_fp = second["paths"]["$.value"]["value_fingerprint"]
+
+    assert first_fp == second_fp
+    assert len(first_fp) == len(values)
+    assert len(set(first_fp)) == len(values)
