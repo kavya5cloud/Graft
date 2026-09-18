@@ -251,3 +251,17 @@ def test_infer_empty_input_returns_valid_schema():
     assert schema["version"] == 1
     assert schema["fixture_count"] == 0
     assert schema["paths"] == {}
+
+
+def test_infer_null_body_records_root_as_nullable():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": None}
+    ])
+
+    root = schema["paths"]["$"]
+
+    assert root["types"] == ["null"]
+    assert root["nullable"] is True
+    assert root["presence_rate"] == 1.0
