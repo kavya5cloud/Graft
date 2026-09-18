@@ -4,3 +4,5 @@ __pycache__/
 .graft/
 *.pyc
 .DS_Store
+fixtures/
+snapshots/
