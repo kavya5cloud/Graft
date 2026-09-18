@@ -127,3 +127,21 @@ def test_invalid_integer_coercion_fails_loudly():
 
     with pytest.raises((ValueError, TypeError)):
         apply_mapping({"count": "not-a-number"}, mapping)
+
+
+def test_invalid_datetime_coercion_fails_loudly():
+    import pytest
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "created_at": {
+                "path": "$.created_at",
+                "transform": "iso_datetime"
+            }
+        }
+    }
+
+    with pytest.raises((ValueError, TypeError)):
+        apply_mapping({"created_at": "not-a-datetime"}, mapping)
