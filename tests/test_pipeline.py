@@ -73,3 +73,59 @@ def test_full_drift_heal_and_rollback_pipeline(tmp_path):
 
     current = v1
     assert json.loads(current.read_text())["version"] == 1
+
+
+def test_cli_apply_and_rollback(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    v1 = tmp_path / "v1.json"
+    v2 = tmp_path / "v2.json"
+
+    v1.write_text(json.dumps({
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity"
+            }
+        }
+    }))
+
+    v2.write_text(json.dumps({
+        "version": 2,
+        "fields": {
+            "total": {
+                "path": "$.grand_total",
+                "transform": "identity"
+            }
+        }
+    }))
+
+    class Args:
+        provider = "orders"
+        mapping = str(v1)
+
+    cli.cmd_apply(Args)
+
+    assert json.loads(
+        (tmp_path / "mappings" / "orders" / "current.json").read_text()
+    )["version"] == 1
+
+    Args.mapping = str(v2)
+    cli.cmd_apply(Args)
+
+    assert json.loads(
+        (tmp_path / "mappings" / "orders" / "current.json").read_text()
+    )["version"] == 2
+
+    class RollbackArgs:
+        provider = "orders"
+
+    cli.cmd_rollback(RollbackArgs)
+
+    assert json.loads(
+        (tmp_path / "mappings" / "orders" / "current.json").read_text()
+    )["version"] == 1
