@@ -265,3 +265,31 @@ def test_infer_null_body_records_root_as_nullable():
     assert root["types"] == ["null"]
     assert root["nullable"] is True
     assert root["presence_rate"] == 1.0
+
+
+def test_infer_boolean_is_not_integer():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": {"active": True}},
+        {"body": {"active": False}},
+    ])
+
+    field = schema["paths"]["$.active"]
+
+    assert field["types"] == ["boolean"]
+    assert field["nullable"] is False
+
+
+def test_infer_boolean_is_not_integer():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": {"active": True}},
+        {"body": {"active": False}},
+    ])
+
+    field = schema["paths"]["$.active"]
+
+    assert field["types"] == ["boolean"]
+    assert field["nullable"] is False
