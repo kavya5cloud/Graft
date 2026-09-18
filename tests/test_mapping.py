@@ -201,3 +201,31 @@ def test_valid_decimal_coercion_is_deterministic():
     result = apply_mapping({"amount": "42.50"}, mapping)
 
     assert result["amount"] == "42.50"
+
+
+def test_transforms_preserve_null_values():
+    from graft.mapping import apply_mapping
+
+    transforms = [
+        "identity",
+        "to_decimal",
+        "to_int",
+        "to_string",
+        "iso_datetime",
+        "unix_to_iso",
+    ]
+
+    for transform in transforms:
+        mapping = {
+            "version": 2,
+            "fields": {
+                "value": {
+                    "path": "$.value",
+                    "transform": transform
+                }
+            }
+        }
+
+        result = apply_mapping({"value": None}, mapping)
+
+        assert result["value"] is None
