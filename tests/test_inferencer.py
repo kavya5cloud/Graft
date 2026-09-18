@@ -241,3 +241,13 @@ def test_infer_schema_has_valid_version():
 
     assert isinstance(schema["version"], int)
     assert schema["version"] == 1
+
+
+def test_infer_empty_input_returns_valid_schema():
+    from graft.inferencer import infer
+
+    schema = infer([])
+
+    assert schema["version"] == 1
+    assert schema["fixture_count"] == 0
+    assert schema["paths"] == {}
