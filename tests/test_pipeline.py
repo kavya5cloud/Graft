@@ -195,3 +195,48 @@ def test_current_pointer_matches_existing_version(tmp_path, monkeypatch):
 
     assert current["version"] == 3
     assert (provider_dir / "v3.json").exists()
+
+
+def test_rollback_uses_previous_existing_version_when_gap_exists(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    provider_dir = tmp_path / "mappings" / "orders"
+    provider_dir.mkdir(parents=True)
+
+    v1 = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity"
+            }
+        }
+    }
+
+    v3 = {
+        "version": 3,
+        "fields": {
+            "total": {
+                "path": "$.grand_total",
+                "transform": "identity"
+            }
+        }
+    }
+
+    (provider_dir / "v1.json").write_text(json.dumps(v1))
+    (provider_dir / "v3.json").write_text(json.dumps(v3))
+    (provider_dir / "current.json").write_text(json.dumps(v3))
+
+    class Args:
+        provider = "orders"
+
+    cli.cmd_rollback(Args)
+
+    current = json.loads(
+        (provider_dir / "current.json").read_text()
+    )
+
+    assert current["version"] == 1
