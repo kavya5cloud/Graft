@@ -145,3 +145,21 @@ def test_invalid_datetime_coercion_fails_loudly():
 
     with pytest.raises((ValueError, TypeError)):
         apply_mapping({"created_at": "not-a-datetime"}, mapping)
+
+
+def test_unix_timestamp_to_iso_is_deterministic():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "created_at": {
+                "path": "$.created_at",
+                "transform": "unix_to_iso"
+            }
+        }
+    }
+
+    result = apply_mapping({"created_at": 0}, mapping)
+
+    assert result["created_at"] == "1970-01-01T00:00:00+00:00"
