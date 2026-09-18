@@ -347,3 +347,16 @@ def test_infer_nested_mixed_array_elements():
 
     assert field["types"] == ["integer", "string"]
     assert field["nullable"] is False
+
+
+def test_infer_field_changing_between_object_and_array():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": {"data": {"id": 1}}},
+        {"body": {"data": [{"id": 2}]}},
+    ])
+
+    field = schema["paths"]["$.data"]
+
+    assert field["types"] == ["array", "object"]
