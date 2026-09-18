@@ -78,3 +78,18 @@ def test_infer_missing_field_tracks_presence_rate():
     assert field["types"] == ["string"]
     assert field["nullable"] is False
     assert field["presence_rate"] == 0.5
+
+
+def test_infer_empty_array_records_array_path():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {"body": {"items": []}},
+        {"body": {"items": []}},
+    ]
+
+    schema = infer(fixtures)
+
+    assert schema["paths"]["$.items"]["types"] == ["array"]
+    assert "$.items[*]" in schema["paths"]
+    assert schema["paths"]["$.items[*]"]["types"] == []
