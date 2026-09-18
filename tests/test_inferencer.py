@@ -293,3 +293,14 @@ def test_infer_boolean_is_not_integer():
 
     assert field["types"] == ["boolean"]
     assert field["nullable"] is False
+
+
+def test_infer_array_type_is_preserved():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {"body": {"items": [1, 2, 3]}}
+    ])
+
+    assert schema["paths"]["$.items"]["types"] == ["array"]
+    assert schema["paths"]["$.items[*]"]["types"] == ["integer"]
