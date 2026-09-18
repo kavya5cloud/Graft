@@ -372,3 +372,26 @@ def test_infer_empty_object_records_object_without_children():
     assert schema["paths"]["$.metadata"]["types"] == ["object"]
     assert "$.metadata" in schema["paths"]
     assert "$.metadata[*]" not in schema["paths"]
+
+
+def test_infer_deeply_nested_object_paths():
+    from graft.inferencer import infer
+
+    schema = infer([
+        {
+            "body": {
+                "account": {
+                    "profile": {
+                        "contact": {
+                            "email": "user@example.com"
+                        }
+                    }
+                }
+            }
+        }
+    ])
+
+    assert schema["paths"]["$.account"]["types"] == ["object"]
+    assert schema["paths"]["$.account.profile"]["types"] == ["object"]
+    assert schema["paths"]["$.account.profile.contact"]["types"] == ["object"]
+    assert schema["paths"]["$.account.profile.contact.email"]["types"] == ["string"]
