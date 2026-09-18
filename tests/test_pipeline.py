@@ -268,7 +268,7 @@ def test_rollback_fails_with_only_one_version(tmp_path, monkeypatch):
     class Args:
         provider = "orders"
 
-    with pytest.raises(SystemExit, match="need at least two versions"):
+    with pytest.raises(SystemExit, match="no previous version"):
         cli.cmd_rollback(Args)
 
     current = json.loads(
@@ -276,3 +276,84 @@ def test_rollback_fails_with_only_one_version(tmp_path, monkeypatch):
     )
 
     assert current["version"] == 1
+
+def test_apply_updates_current_atomically(tmp_path, monkeypatch):
+    import graft.cli as cli
+
+    root = tmp_path
+    monkeypatch.setattr(cli, "ROOT", root)
+
+    provider_dir = root / "mappings" / "orders"
+    provider_dir.mkdir(parents=True)
+
+    old = {
+        "version": 1,
+        "fields": {
+            "id": {"path": "$.id", "transform": "identity"}
+        },
+    }
+
+    new = {
+        "version": 2,
+        "fields": {
+            "id": {"path": "$.order_id", "transform": "identity"}
+        },
+    }
+
+    (provider_dir / "v1.json").write_text(
+        __import__("json").dumps(old)
+    )
+    (provider_dir / "current.json").write_text(
+        __import__("json").dumps(old)
+    )
+
+    candidate = root / "candidate.json"
+    candidate.write_text(__import__("json").dumps(new))
+
+    args = type("Args", (), {
+        "provider": "orders",
+        "mapping": str(candidate),
+    })()
+
+    cli.cmd_apply(args)
+
+    assert (provider_dir / "v2.json").exists()
+    assert __import__("json").loads(
+        (provider_dir / "current.json").read_text()
+    )["version"] == 2
+
+def test_rollback_uses_version_below_active_pointer(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    provider_dir = tmp_path / "mappings" / "orders"
+    provider_dir.mkdir(parents=True)
+
+    for version in (1, 2, 4):
+        mapping = {
+            "version": version,
+            "fields": {
+                "id": {
+                    "path": f"$.id_{version}",
+                    "transform": "identity",
+                }
+            },
+        }
+        (provider_dir / f"v{version}.json").write_text(json.dumps(mapping))
+
+    (provider_dir / "current.json").write_text(
+        (provider_dir / "v4.json").read_text()
+    )
+
+    class Args:
+        provider = "orders"
+
+    cli.cmd_rollback(Args)
+
+    current = json.loads(
+        (provider_dir / "current.json").read_text()
+    )
+
+    assert current["version"] == 2

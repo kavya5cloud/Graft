@@ -1,4 +1,4 @@
-import argparse, json, shutil, urllib.request
+import argparse, json, os, shutil, tempfile, urllib.request
 from pathlib import Path
 from .recorder import record_pair
 from .inferencer import infer, load_fixtures
@@ -60,12 +60,59 @@ def cmd_validate(a):
     raise SystemExit(0 if r["valid"] else 1)
 
 def cmd_apply(a):
-    src=Path(a.mapping); provider_dir=ROOT/"mappings"/a.provider; provider_dir.mkdir(parents=True,exist_ok=True); version=read_json(src)["version"]; dst=provider_dir/f"v{version}.json"; shutil.copyfile(src,dst); shutil.copyfile(src,provider_dir/"current.json"); print(dst)
+    src = Path(a.mapping)
+    provider_dir = ROOT / "mappings" / a.provider
+    provider_dir.mkdir(parents=True, exist_ok=True)
+
+    version = read_json(src)["version"]
+    dst = provider_dir / f"v{version}.json"
+    current = provider_dir / "current.json"
+
+    shutil.copyfile(src, dst)
+
+    fd, temp_name = tempfile.mkstemp(
+        dir=provider_dir,
+        prefix=".current-",
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(fd, "wb") as tmp:
+            tmp.write(src.read_bytes())
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        os.replace(temp_name, current)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+        raise
+
+    print(dst)
 
 def cmd_rollback(a):
-    d=ROOT/"mappings"/a.provider; versions=sorted(d.glob("v*.json"),key=lambda p:int(p.stem[1:]));
-    if len(versions)<2: raise SystemExit("need at least two versions")
-    shutil.copyfile(versions[-2],d/"current.json"); print(f"rolled back to {versions[-2].name}")
+    d = ROOT / "mappings" / a.provider
+    current = d / "current.json"
+
+    if not current.exists():
+        raise SystemExit("no current mapping")
+
+    active_version = read_json(current)["version"]
+    versions = sorted(
+        d.glob("v*.json"),
+        key=lambda p: int(p.stem[1:]),
+    )
+    previous = [
+        p for p in versions
+        if int(p.stem[1:]) < active_version
+    ]
+
+    if not previous:
+        raise SystemExit("no previous version")
+
+    target = previous[-1]
+    shutil.copyfile(target, current)
+    print(f"rolled back to {target.name}")
 
 def main():
     p=argparse.ArgumentParser(prog="graft"); s=p.add_subparsers(dest="cmd",required=True)
