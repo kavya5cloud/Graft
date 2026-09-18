@@ -109,3 +109,21 @@ def test_valid_default_transform_is_supported():
 
     assert apply_mapping({}, mapping)["status"] == "unknown"
     assert apply_mapping({"status": "active"}, mapping)["status"] == "active"
+
+
+def test_invalid_integer_coercion_fails_loudly():
+    import pytest
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "count": {
+                "path": "$.count",
+                "transform": "to_int"
+            }
+        }
+    }
+
+    with pytest.raises((ValueError, TypeError)):
+        apply_mapping({"count": "not-a-number"}, mapping)
