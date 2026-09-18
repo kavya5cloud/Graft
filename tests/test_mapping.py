@@ -113,6 +113,7 @@ def test_valid_default_transform_is_supported():
 
 def test_invalid_integer_coercion_fails_loudly():
     import pytest
+    from decimal import InvalidOperation
     from graft.mapping import apply_mapping
 
     mapping = {
@@ -163,3 +164,22 @@ def test_unix_timestamp_to_iso_is_deterministic():
     result = apply_mapping({"created_at": 0}, mapping)
 
     assert result["created_at"] == "1970-01-01T00:00:00+00:00"
+
+
+def test_invalid_decimal_coercion_fails_loudly():
+    import pytest
+    from decimal import InvalidOperation
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amount": {
+                "path": "$.amount",
+                "transform": "to_decimal"
+            }
+        }
+    }
+
+    with pytest.raises(InvalidOperation):
+        apply_mapping({"amount": "not-a-decimal"}, mapping)
