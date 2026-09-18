@@ -11,3 +11,33 @@ def test_nested_schema_and_presence():
 def test_fingerprint_numeric_string_overlap():
     a=infer([f({"x":"42.5"})]); b=infer([f({"y":42.5})])
     assert set(a["paths"]["$.x"]["value_fingerprint"]) & set(b["paths"]["$.y"]["value_fingerprint"])
+
+
+def test_infer_mixed_types_records_all_types():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {
+            "body": {
+                "amount": 10,
+            }
+        },
+        {
+            "body": {
+                "amount": "20",
+            }
+        },
+        {
+            "body": {
+                "amount": 30.5,
+            }
+        },
+    ]
+
+    schema = infer(fixtures)
+
+    assert set(schema["paths"]["$.amount"]["types"]) == {
+        "integer",
+        "string",
+        "number",
+    }
