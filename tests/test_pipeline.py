@@ -357,3 +357,76 @@ def test_rollback_uses_version_below_active_pointer(tmp_path, monkeypatch):
     )
 
     assert current["version"] == 2
+
+def test_apply_and_rollback_write_audit_trail(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    provider_dir = tmp_path / "mappings" / "orders"
+    provider_dir.mkdir(parents=True)
+
+    v1 = {
+        "version": 1,
+        "fields": {"id": {"path": "$.id", "transform": "identity"}},
+    }
+    v2 = {
+        "version": 2,
+        "fields": {"id": {"path": "$.order_id", "transform": "identity"}},
+    }
+
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(v2))
+
+    class Args:
+        provider = "orders"
+        mapping = str(candidate)
+
+    cli.cmd_apply(Args)
+
+    cli.cmd_apply(Args)
+
+    (provider_dir / "v1.json").write_text(json.dumps(v1))
+    cli.cmd_rollback(Args)
+
+    audit = tmp_path / ".graft" / "audit.jsonl"
+    events = [
+        json.loads(line)
+        for line in audit.read_text().splitlines()
+    ]
+
+    assert [event["action"] for event in events] == [
+        "apply",
+        "apply",
+        "rollback",
+    ]
+    assert events[0]["version"] == 2
+    assert events[2]["from_version"] == 2
+    assert events[2]["to_version"] == 1
+
+def test_cli_audit_displays_audit_events(tmp_path, monkeypatch, capsys):
+    from graft import cli
+    from graft.audit import record_audit
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "STATE", tmp_path / ".graft")
+
+    record_audit(
+        tmp_path,
+        "apply",
+        "orders",
+        version=2,
+        mapping="mappings/orders/v2.json",
+    )
+
+    class Args:
+        pass
+
+    cli.cmd_audit(Args)
+
+    output = capsys.readouterr().out
+
+    assert '"action": "apply"' in output
+    assert '"provider": "orders"' in output
+    assert '"version": 2' in output

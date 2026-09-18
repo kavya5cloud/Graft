@@ -5,6 +5,7 @@ from .inferencer import infer, load_fixtures
 from .differ import diff
 from .healer import propose
 from .validator import validate
+from .audit import record_audit
 
 ROOT=Path.cwd(); STATE=ROOT/".graft"
 def read_json(p): return json.loads(Path(p).read_text())
@@ -88,7 +89,26 @@ def cmd_apply(a):
             pass
         raise
 
+    record_audit(
+        ROOT,
+        "apply",
+        a.provider,
+        version=version,
+        mapping=str(dst),
+    )
     print(dst)
+
+def cmd_audit(a):
+    path = STATE / "audit.jsonl"
+
+    if not path.exists():
+        print("no audit events")
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            print(json.dumps(json.loads(line), indent=2, sort_keys=True))
+
 
 def cmd_rollback(a):
     d = ROOT / "mappings" / a.provider
@@ -111,7 +131,18 @@ def cmd_rollback(a):
         raise SystemExit("no previous version")
 
     target = previous[-1]
+    target_version = int(target.stem[1:])
     shutil.copyfile(target, current)
+
+    record_audit(
+        ROOT,
+        "rollback",
+        a.provider,
+        from_version=active_version,
+        to_version=target_version,
+        mapping=str(target),
+    )
+
     print(f"rolled back to {target.name}")
 
 def main():
@@ -123,5 +154,6 @@ def main():
     r=s.add_parser("validate"); r.add_argument("old"); r.add_argument("candidate"); r.add_argument("fixtures"); r.add_argument("--invariant",action="append"); r.set_defaults(fn=cmd_validate)
     r=s.add_parser("apply"); r.add_argument("provider"); r.add_argument("mapping"); r.set_defaults(fn=cmd_apply)
     r=s.add_parser("rollback"); r.add_argument("provider"); r.set_defaults(fn=cmd_rollback)
+    r=s.add_parser("audit"); r.set_defaults(fn=cmd_audit)
     a=p.parse_args(); a.fn(a)
 if __name__=="__main__": main()
