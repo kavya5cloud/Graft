@@ -129,3 +129,38 @@ def test_cli_apply_and_rollback(tmp_path, monkeypatch):
     assert json.loads(
         (tmp_path / "mappings" / "orders" / "current.json").read_text()
     )["version"] == 1
+
+
+def test_apply_same_version_is_idempotent(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    mapping = tmp_path / "candidate.json"
+    mapping.write_text(json.dumps({
+        "version": 2,
+        "fields": {
+            "total": {
+                "path": "$.grand_total",
+                "transform": "identity"
+            }
+        }
+    }))
+
+    class Args:
+        provider = "orders"
+
+    Args.mapping = str(mapping)
+
+    cli.cmd_apply(Args)
+    first = (tmp_path / "mappings" / "orders" / "current.json").read_text()
+
+    cli.cmd_apply(Args)
+    second = (tmp_path / "mappings" / "orders" / "current.json").read_text()
+
+    versions = list((tmp_path / "mappings" / "orders").glob("v*.json"))
+
+    assert first == second
+    assert len(versions) == 1
+    assert versions[0].name == "v2.json"
