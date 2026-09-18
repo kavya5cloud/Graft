@@ -317,3 +317,29 @@ def test_array_transform_applies_per_element():
     result = apply_mapping(body, mapping)
 
     assert result["amounts"] == [10, 20, 30]
+
+
+def test_array_transform_preserves_null_elements():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "amounts": {
+                "path": "$.items[*].amount",
+                "transform": "to_int"
+            }
+        }
+    }
+
+    body = {
+        "items": [
+            {"amount": "10"},
+            {"amount": None},
+            {"amount": "30"}
+        ]
+    }
+
+    result = apply_mapping(body, mapping)
+
+    assert result["amounts"] == [10, None, 30]
