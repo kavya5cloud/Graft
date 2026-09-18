@@ -343,3 +343,29 @@ def test_array_transform_preserves_null_elements():
     result = apply_mapping(body, mapping)
 
     assert result["amounts"] == [10, None, 30]
+
+
+def test_nested_array_path_with_transform():
+    from graft.mapping import apply_mapping
+
+    mapping = {
+        "version": 2,
+        "fields": {
+            "customer_ids": {
+                "path": "$.orders[*].customer.id",
+                "transform": "to_int"
+            }
+        }
+    }
+
+    body = {
+        "orders": [
+            {"customer": {"id": "101"}},
+            {"customer": {"id": "202"}},
+            {"customer": {"id": "303"}}
+        ]
+    }
+
+    result = apply_mapping(body, mapping)
+
+    assert result["customer_ids"] == [101, 202, 303]
