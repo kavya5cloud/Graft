@@ -29,18 +29,20 @@ def _fingerprint_value(v: Any) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _walk(value: Any, path: str, out: dict[str, dict], present: set[str]) -> None:
+def _walk(value: Any, path: str, out: dict[str, dict], present: set[str], counts: dict[str, int] | None = None) -> None:
     rec = out.setdefault(path, {"types": set(), "nulls": 0, "occurrences": 0, "fingerprints": set()})
     rec["types"].add(_type(value)); rec["occurrences"] += 1
     present.add(path)
+    if counts is not None:
+        counts[path] = counts.get(path, 0) + 1
     if value is None:
         rec["nulls"] += 1; return
     if isinstance(value, dict):
-        for k, child in value.items(): _walk(child, f"{path}.{k}" if path != "$" else f"$.{k}", out, present)
+        for k, child in value.items(): _walk(child, f"{path}.{k}" if path != "$" else f"$.{k}", out, present, counts)
     elif isinstance(value, list):
         item_path = f"{path}[*]"
         if not value: out.setdefault(item_path, {"types": set(), "nulls": 0, "occurrences": 0, "fingerprints": set()})
-        for child in value: _walk(child, item_path, out, present)
+        for child in value: _walk(child, item_path, out, present, counts)
     else:
         if len(rec["fingerprints"]) < MAX_FINGERPRINT: rec["fingerprints"].add(_fingerprint_value(value))
 
@@ -49,14 +51,29 @@ def infer(fixtures: Iterable[dict[str, Any]]) -> dict[str, Any]:
     rows = list(fixtures); n = max(len(rows), 1)
     aggregate: dict[str, dict] = {}; presence = defaultdict(int)
     for row in rows:
-        seen: set[str] = set(); _walk(row.get("body"), "$", aggregate, seen)
+        seen: set[str] = set()
+        _walk(row.get("body"), "$", aggregate, seen)
         for p in seen: presence[p] += 1
     paths = {}
     for p, r in sorted(aggregate.items()):
+        if p == "$":
+            denominator = 1
+            numerator = 1
+        elif "[*]" in p:
+            wildcard_end = p.find("[*]") + 3
+            array_item_path = p[:wildcard_end]
+            denominator = aggregate.get(array_item_path, {}).get("occurrences", 0)
+            numerator = r["occurrences"]
+        else:
+            denominator = n
+            numerator = presence[p]
+
+        rate = numerator / denominator if denominator else 0.0
+
         paths[p] = {
             "types": sorted(r["types"]),
             "nullable": "null" in r["types"],
-            "presence_rate": round(presence[p] / n, 6) if p != "$" else 1.0,
+            "presence_rate": round(rate, 6),
             "value_fingerprint": sorted(r["fingerprints"])[:MAX_FINGERPRINT],
         }
     return {"version": 1, "fixture_count": len(rows), "paths": paths}

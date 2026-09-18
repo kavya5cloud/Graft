@@ -114,3 +114,55 @@ def test_infer_nested_object_paths():
     assert schema["paths"]["$.customer"]["types"] == ["object"]
     assert schema["paths"]["$.customer.id"]["types"] == ["integer"]
     assert schema["paths"]["$.customer.name"]["types"] == ["string"]
+
+
+def test_infer_nested_array_objects_with_missing_field():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {
+            "body": {
+                "orders": [
+                    {"id": 101, "total": 10.5},
+                    {"id": 102},
+                ]
+            }
+        }
+    ]
+
+    schema = infer(fixtures)
+
+    assert schema["paths"]["$.orders"]["types"] == ["array"]
+    assert schema["paths"]["$.orders[*].id"]["types"] == ["integer"]
+    assert schema["paths"]["$.orders[*].total"]["types"] == ["number"]
+    assert schema["paths"]["$.orders[*].total"]["presence_rate"] == 0.5
+
+
+def test_infer_array_field_presence_across_multiple_fixtures():
+    from graft.inferencer import infer
+
+    fixtures = [
+        {
+            "body": {
+                "orders": [
+                    {"id": 1, "total": 10},
+                    {"id": 2},
+                ]
+            }
+        },
+        {
+            "body": {
+                "orders": [
+                    {"id": 3, "total": 30},
+                    {"id": 4, "total": 40},
+                ]
+            }
+        },
+    ]
+
+    schema = infer(fixtures)
+
+    field = schema["paths"]["$.orders[*].total"]
+
+    assert field["types"] == ["integer"]
+    assert field["presence_rate"] == 0.75
