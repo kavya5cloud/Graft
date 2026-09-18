@@ -164,3 +164,34 @@ def test_apply_same_version_is_idempotent(tmp_path, monkeypatch):
     assert first == second
     assert len(versions) == 1
     assert versions[0].name == "v2.json"
+
+
+def test_current_pointer_matches_existing_version(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    mapping = tmp_path / "candidate.json"
+    mapping.write_text(json.dumps({
+        "version": 3,
+        "fields": {
+            "total": {
+                "path": "$.grand_total",
+                "transform": "identity"
+            }
+        }
+    }))
+
+    class Args:
+        provider = "orders"
+
+    Args.mapping = str(mapping)
+
+    cli.cmd_apply(Args)
+
+    provider_dir = tmp_path / "mappings" / "orders"
+    current = json.loads((provider_dir / "current.json").read_text())
+
+    assert current["version"] == 3
+    assert (provider_dir / "v3.json").exists()
