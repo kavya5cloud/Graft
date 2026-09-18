@@ -38,3 +38,21 @@ def test_nested_and_array_paths():
 
     assert result["customer_email"] == "a@example.com"
     assert result["line_items"] == ["20.00", "22.50"]
+
+
+def test_unsupported_transform_is_rejected():
+    import pytest
+    from graft.mapping import validate_mapping
+
+    malformed = {
+        "version": 2,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "llm_magic"
+            }
+        }
+    }
+
+    with pytest.raises(ValueError):
+        validate_mapping(malformed)
