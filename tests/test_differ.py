@@ -234,3 +234,117 @@ def test_false_positive_same_type_unrelated_values():
     assert all(c["kind"] != "RENAMED" for c in result["changes"])
     assert {"kind": "REMOVED", "path": "$.total"} in result["changes"]
     assert {"kind": "ADDED", "path": "$.customer_name"} in result["changes"]
+
+
+def test_healer_applies_high_confidence_rename():
+    from graft.healer import propose
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity"
+            }
+        }
+    }
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"]
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.grand_total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"]
+            }
+        }
+    }
+
+    diff_result = {
+        "changes": [{
+            "kind": "RENAMED",
+            "old": "$.total",
+            "new": "$.grand_total",
+            "confidence": 0.99
+        }]
+    }
+
+    candidate = propose(
+        old_mapping,
+        diff_result,
+        old_schema,
+        new_schema
+    )
+
+    assert candidate["version"] == 2
+    assert candidate["fields"]["total"]["path"] == "$.grand_total"
+    assert candidate["fields"]["total"]["transform"] == "identity"
+
+
+def test_low_confidence_rename_is_not_proposed():
+    from graft.healer import propose
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity"
+            }
+        }
+    }
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"]
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.unrelated": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["completely-different"]
+            }
+        }
+    }
+
+    diff_result = {
+        "changes": [
+            {
+                "kind": "REMOVED",
+                "path": "$.total"
+            },
+            {
+                "kind": "ADDED",
+                "path": "$.unrelated"
+            }
+        ]
+    }
+
+    candidate = propose(
+        old_mapping,
+        diff_result,
+        old_schema,
+        new_schema
+    )
+
+    assert candidate["fields"]["total"]["path"] == "$.total"
