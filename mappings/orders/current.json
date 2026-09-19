@@ -21,7 +21,7 @@
       "transform": "identity"
     },
     "total": {
-      "path": "$.grand_total",
+      "path": "$.total",
       "transform": "identity"
     }
   },

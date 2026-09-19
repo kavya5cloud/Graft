@@ -9,10 +9,11 @@ def payload():
     elif MUTATE=="retype": x["total"]=42.5
     elif MUTATE=="drop": x.pop("shipping_address")
     elif MUTATE=="nest": x["summary"]={"total":x.pop("total")}
+    elif MUTATE=="add": x["status"]="confirmed"
     return x
 @app.get("/orders/1001")
 def order(): return payload()
 
 if __name__=="__main__":
     import uvicorn
-    p=argparse.ArgumentParser(); p.add_argument("--mutate",choices=["rename","retype","drop","nest"]); p.add_argument("--port",type=int,default=8000); a=p.parse_args(); MUTATE=a.mutate; uvicorn.run(app,host="127.0.0.1",port=a.port)
+    p=argparse.ArgumentParser(); p.add_argument("--mutate",choices=["rename","retype","drop","nest","add"]); p.add_argument("--port",type=int,default=8000); a=p.parse_args(); MUTATE=a.mutate; uvicorn.run(app,host="127.0.0.1",port=a.port)

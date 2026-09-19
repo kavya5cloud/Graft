@@ -133,3 +133,44 @@ def test_validator_rejects_dropped_output_field_across_fixtures():
 
     assert result["valid"] is False
     assert sum("dropped keys" in e for e in result["errors"]) == 2
+
+
+def test_validator_accepts_safe_retype():
+    from graft.validator import validate
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "to_string",
+            }
+        },
+    }
+
+    candidate_mapping = {
+        "version": 2,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "to_decimal",
+            }
+        },
+    }
+
+    fixtures = [
+        {
+            "body": {
+                "total": 42.5,
+            }
+        }
+    ]
+
+    result = validate(
+        old_mapping,
+        candidate_mapping,
+        fixtures,
+    )
+
+    assert result["valid"] is True
+    assert result["new_outputs"][0]["total"] == "42.5"

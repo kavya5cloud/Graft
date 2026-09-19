@@ -197,6 +197,18 @@ def cmd_heal(a):
         print("no drift detected")
         return
 
+    repairable = {
+        "RENAMED",
+        "RETYPED",
+    }
+
+    if not any(
+        change["kind"] in repairable
+        for change in d["changes"]
+    ):
+        print("drift detected, no safe auto-heal")
+        return
+
     mapping_path = (
         ROOT
         / "mappings"
