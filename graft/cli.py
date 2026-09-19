@@ -57,41 +57,56 @@ def cmd_snapshot(a):
 
     print("snapshot written")
 
-def cmd_check(a):
-    if a.old:
-        old_path = Path(a.old)
-    else:
-        registry_path = STATE / "contracts.json"
+def resolve_contract_schema(provider, endpoint):
+    registry_path = STATE / "contracts.json"
 
-        if not registry_path.exists():
-            raise SystemExit(
-                f"no registered contract for {a.provider}/{a.endpoint}"
-            )
+    if not registry_path.exists():
+        raise SystemExit(
+            f"no registered contract for {provider}/{endpoint}"
+        )
 
-        registry = read_json(registry_path)
-        key = f"{a.provider}/{a.endpoint}"
-        contract = registry.get(key)
+    registry = read_json(registry_path)
+    key = f"{provider}/{endpoint}"
+    contract = registry.get(key)
 
-        if not contract:
-            raise SystemExit(
-                f"no registered contract for {a.provider}/{a.endpoint}"
-            )
+    if not contract:
+        raise SystemExit(
+            f"no registered contract for {provider}/{endpoint}"
+        )
 
-        old_path = Path(contract["schema"])
+    schema_path = Path(contract["schema"])
 
-        if not old_path.is_absolute():
-            old_path = ROOT / old_path
+    if not schema_path.is_absolute():
+        schema_path = ROOT / schema_path
 
-    old=read_json(old_path)
+    return schema_path
 
-    fixture_dir=ROOT/"fixtures"/a.provider/a.endpoint
-    fixtures=sorted(fixture_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+
+def latest_fixture(provider, endpoint):
+    fixture_dir = ROOT / "fixtures" / provider / endpoint
+    fixtures = sorted(
+        fixture_dir.glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+    )
 
     if not fixtures:
         raise SystemExit("no fixtures found")
 
+    return fixtures[-1]
+
+
+def cmd_check(a):
+    old_path = Path(a.old) if a.old else resolve_contract_schema(
+        a.provider,
+        a.endpoint,
+    )
+
+    old = read_json(old_path)
+
     # Check only the latest observation against the stored baseline.
-    new=infer([read_json(fixtures[-1])])
+    new = infer([
+        read_json(latest_fixture(a.provider, a.endpoint))
+    ])
 
     d=diff(old,new)
     write_json(STATE/"last_diff.json",d)
@@ -159,6 +174,79 @@ def cmd_apply(a):
     )
     print(dst)
 
+def cmd_heal(a):
+    old_schema_path = resolve_contract_schema(
+        a.provider,
+        a.endpoint,
+    )
+
+    fixture_path = latest_fixture(
+        a.provider,
+        a.endpoint,
+    )
+
+    old_schema = read_json(old_schema_path)
+    new_schema = infer([read_json(fixture_path)])
+
+    d = diff(old_schema, new_schema)
+
+    write_json(STATE / "last_diff.json", d)
+    write_json(STATE / "latest_schema.json", new_schema)
+
+    if not d["changes"]:
+        print("no drift detected")
+        return
+
+    mapping_path = (
+        ROOT
+        / "mappings"
+        / a.provider
+        / "current.json"
+    )
+
+    if not mapping_path.exists():
+        raise SystemExit(
+            f"no current mapping for {a.provider}"
+        )
+
+    candidate = propose(
+        read_json(mapping_path),
+        d,
+        old_schema,
+        new_schema,
+    )
+
+    candidate_path = STATE / "candidate.json"
+    write_json(candidate_path, candidate)
+
+    fixture = read_json(fixture_path)
+
+    result = validate(
+        read_json(mapping_path),
+        candidate,
+        [fixture],
+        a.invariant or [],
+    )
+
+    print(json.dumps(result, indent=2))
+
+    if not result["valid"]:
+        print("heal aborted: candidate failed validation")
+        raise SystemExit(1)
+
+    apply_args = argparse.Namespace(
+        provider=a.provider,
+        mapping=str(candidate_path),
+    )
+
+    cmd_apply(apply_args)
+
+    print(
+        f"healed {a.provider}/{a.endpoint} "
+        f"to mapping v{candidate['version']}"
+    )
+
+
 def cmd_audit(a):
     path = STATE / "audit.jsonl"
 
@@ -214,6 +302,7 @@ def main():
     r=s.add_parser("propose"); r.add_argument("old_schema"); r.add_argument("new_schema"); r.add_argument("mapping"); r.add_argument("diff"); r.set_defaults(fn=cmd_propose)
     r=s.add_parser("validate"); r.add_argument("old"); r.add_argument("candidate"); r.add_argument("fixtures"); r.add_argument("--invariant",action="append"); r.set_defaults(fn=cmd_validate)
     r=s.add_parser("apply"); r.add_argument("provider"); r.add_argument("mapping"); r.set_defaults(fn=cmd_apply)
+    r=s.add_parser("heal"); r.add_argument("provider"); r.add_argument("endpoint"); r.add_argument("--invariant",action="append"); r.set_defaults(fn=cmd_heal)
     r=s.add_parser("rollback"); r.add_argument("provider"); r.set_defaults(fn=cmd_rollback)
     r=s.add_parser("audit"); r.set_defaults(fn=cmd_audit)
     a=p.parse_args(); a.fn(a)
