@@ -856,3 +856,53 @@ def test_runtime_missing_active_mapping_fails(tmp_path):
         assert False, "expected missing mapping failure"
     except FileNotFoundError as exc:
         assert "no active mapping for provider: orders" in str(exc)
+
+
+def test_runtime_fetch_and_normalize(tmp_path):
+    from graft.runtime import fetch_and_normalize
+
+    mapping_dir = tmp_path / "mappings" / "orders"
+    mapping_dir.mkdir(parents=True)
+
+    (mapping_dir / "current.json").write_text(json.dumps({
+        "version": 3,
+        "fields": {
+            "total": {
+                "path": "$.summary.total",
+                "transform": "identity",
+            },
+            "order_id": {
+                "path": "$.order_id",
+                "transform": "identity",
+            },
+        },
+    }))
+
+    class FakeProvider:
+        def fetch(self, url):
+            assert url == "https://provider.test/orders/1001"
+            return {
+                "status": 200,
+                "headers": {
+                    "content-type": "application/json",
+                },
+                "body": {
+                    "order_id": "ord_1001",
+                    "summary": {
+                        "total": "42.50",
+                    },
+                },
+            }
+
+    result = fetch_and_normalize(
+        tmp_path,
+        "orders",
+        FakeProvider(),
+        "https://provider.test/orders/1001",
+    )
+
+    assert result["status"] == 200
+    assert result["data"] == {
+        "total": "42.50",
+        "order_id": "ord_1001",
+    }
