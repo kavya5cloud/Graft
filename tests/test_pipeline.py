@@ -634,3 +634,176 @@ def test_check_resolves_registered_contract_without_old_path(tmp_path, monkeypat
         for change in diff_result["changes"]
         if change["kind"] == "REMOVED"
     }
+
+
+def test_cli_heal_applies_safe_rename(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    state = tmp_path / ".graft"
+    state.mkdir(parents=True)
+
+    (state / "contracts.json").write_text(json.dumps({
+        "orders/orders": {
+            "provider": "orders",
+            "endpoint": "orders",
+            "schema": "snapshots/orders/orders.json",
+        }
+    }))
+
+    schema_dir = tmp_path / "snapshots/orders"
+    schema_dir.mkdir(parents=True)
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"],
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.grand_total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"],
+            }
+        }
+    }
+
+    (schema_dir / "orders.json").write_text(json.dumps(old_schema))
+
+    fixture_dir = tmp_path / "fixtures/orders/orders"
+    fixture_dir.mkdir(parents=True)
+
+    (fixture_dir / "latest.json").write_text(json.dumps({
+        "body": {
+            "grand_total": "42.50"
+        }
+    }))
+
+    mapping_dir = tmp_path / "mappings/orders"
+    mapping_dir.mkdir(parents=True)
+
+    v1 = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity",
+            }
+        },
+    }
+
+    (mapping_dir / "current.json").write_text(json.dumps(v1))
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+        invariant = None
+
+    cli.cmd_heal(Args)
+
+    current = json.loads(
+        (mapping_dir / "current.json").read_text()
+    )
+
+    assert current["version"] == 2
+    assert current["fields"]["total"]["path"] == "$.grand_total"
+
+
+def test_cli_heal_does_not_apply_added_field(tmp_path, monkeypatch):
+    import json
+    from graft import cli
+
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+
+    state = tmp_path / ".graft"
+    state.mkdir(parents=True)
+
+    (state / "contracts.json").write_text(json.dumps({
+        "orders/orders": {
+            "provider": "orders",
+            "endpoint": "orders",
+            "schema": "snapshots/orders/orders.json",
+        }
+    }))
+
+    schema_dir = tmp_path / "snapshots/orders"
+    schema_dir.mkdir(parents=True)
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+            "$.status": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["confirmed"],
+            },
+        }
+    }
+
+    (schema_dir / "orders.json").write_text(json.dumps(old_schema))
+
+    fixture_dir = tmp_path / "fixtures/orders/orders"
+    fixture_dir.mkdir(parents=True)
+
+    (fixture_dir / "latest.json").write_text(json.dumps({
+        "body": {
+            "total": "42.50",
+            "status": "confirmed",
+        }
+    }))
+
+    mapping_dir = tmp_path / "mappings/orders"
+    mapping_dir.mkdir(parents=True)
+
+    v1 = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity",
+            }
+        },
+    }
+
+    (mapping_dir / "current.json").write_text(json.dumps(v1))
+
+    class Args:
+        provider = "orders"
+        endpoint = "orders"
+        invariant = None
+
+    cli.cmd_heal(Args)
+
+    current = json.loads(
+        (mapping_dir / "current.json").read_text()
+    )
+
+    assert current["version"] == 1
+    assert not (mapping_dir / "v2.json").exists()

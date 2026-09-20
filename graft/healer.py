@@ -15,7 +15,7 @@ def _coercion(old_types, new_types):
 def propose(old_mapping, diff_result, old_schema, new_schema):
     candidate = deepcopy(old_mapping); candidate["version"] = old_mapping.get("version", 1) + 1
     for change in diff_result["changes"]:
-        if change["kind"] == "RENAMED" and change["confidence"] >= 0.9:
+        if change["kind"] in {"RENAMED", "MOVED"} and change["confidence"] >= 0.9:
             for field, spec in candidate["fields"].items():
                 if spec.get("path") == change["old"]:
                     spec["path"] = change["new"]

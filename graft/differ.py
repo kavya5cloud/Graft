@@ -38,7 +38,18 @@ def diff(old_schema, new_schema, min_match=0.6):
     for score, oldp, newp in candidates:
         if oldp in used_o or newp in used_n or score < min_match: continue
         used_o.add(oldp); used_n.add(newp)
-        changes.append({"kind":"RENAMED","old":oldp,"new":newp,"confidence":score})
+        kind = (
+            "RENAMED"
+            if _parent(oldp) == _parent(newp)
+            else "MOVED"
+        )
+
+        changes.append({
+            "kind": kind,
+            "old": oldp,
+            "new": newp,
+            "confidence": score,
+        })
     changes += [{"kind":"REMOVED","path":p} for p in sorted(removed-used_o)]
     changes += [{"kind":"ADDED","path":p} for p in sorted(added-used_n)]
     return {"changes": changes}

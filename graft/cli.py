@@ -199,6 +199,7 @@ def cmd_heal(a):
 
     repairable = {
         "RENAMED",
+        "MOVED",
         "RETYPED",
     }
 

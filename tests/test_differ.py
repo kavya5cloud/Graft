@@ -381,3 +381,106 @@ def test_real_inferred_rename_detected():
     assert rename["old"] == "$.total"
     assert rename["new"] == "$.grand_total"
     assert rename["confidence"] >= 0.9
+
+
+def test_nested_move_is_classified_as_moved():
+    old = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            }
+        }
+    }
+
+    new = {
+        "paths": {
+            "$.summary": {
+                "types": ["object"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+            "$.summary.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"],
+            },
+        }
+    }
+
+    result = diff(old, new)
+
+    move = next(
+        c for c in result["changes"]
+        if c["old"] == "$.total"
+        and c["new"] == "$.summary.total"
+    )
+
+    assert move["kind"] == "MOVED"
+    assert move["confidence"] >= 0.9
+
+
+def test_healer_applies_high_confidence_move():
+    from graft.healer import propose
+
+    old_mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity"
+            }
+        }
+    }
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"]
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.summary": {
+                "types": ["object"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": []
+            },
+            "$.summary.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": ["amount-42.50"]
+            }
+        }
+    }
+
+    diff_result = {
+        "changes": [{
+            "kind": "MOVED",
+            "old": "$.total",
+            "new": "$.summary.total",
+            "confidence": 0.95
+        }]
+    }
+
+    candidate = propose(
+        old_mapping,
+        diff_result,
+        old_schema,
+        new_schema
+    )
+
+    assert candidate["version"] == 2
+    assert candidate["fields"]["total"]["path"] == "$.summary.total"
+    assert candidate["fields"]["total"]["transform"] == "identity"
