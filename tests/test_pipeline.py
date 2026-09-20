@@ -807,3 +807,52 @@ def test_cli_heal_does_not_apply_added_field(tmp_path, monkeypatch):
 
     assert current["version"] == 1
     assert not (mapping_dir / "v2.json").exists()
+
+
+def test_runtime_normalizes_using_active_mapping(tmp_path):
+    from graft.runtime import normalize_active
+
+    mapping_dir = tmp_path / "mappings" / "orders"
+    mapping_dir.mkdir(parents=True)
+
+    (mapping_dir / "current.json").write_text(json.dumps({
+        "version": 3,
+        "fields": {
+            "total": {
+                "path": "$.summary.total",
+                "transform": "identity",
+            },
+            "order_id": {
+                "path": "$.order_id",
+                "transform": "identity",
+            },
+        },
+    }))
+
+    body = {
+        "order_id": "ord_1001",
+        "summary": {
+            "total": "42.50",
+        },
+    }
+
+    result = normalize_active(tmp_path, "orders", body)
+
+    assert result == {
+        "total": "42.50",
+        "order_id": "ord_1001",
+    }
+
+
+def test_runtime_missing_active_mapping_fails(tmp_path):
+    from graft.runtime import normalize_active
+
+    try:
+        normalize_active(
+            tmp_path,
+            "orders",
+            {"total": "42.50"},
+        )
+        assert False, "expected missing mapping failure"
+    except FileNotFoundError as exc:
+        assert "no active mapping for provider: orders" in str(exc)
