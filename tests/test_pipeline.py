@@ -1106,3 +1106,74 @@ def test_healing_service_rejects_failed_candidate():
 
     assert result["status"] == "rejected"
     assert result["validation"]["valid"] is False
+
+
+def test_runtime_unsafe_drift_preserves_active_mapping(tmp_path):
+    from graft.runtime import fetch_and_heal, load_active_mapping
+
+    mapping_dir = tmp_path / "mappings" / "orders"
+    mapping_dir.mkdir(parents=True)
+
+    mapping = {
+        "version": 4,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity",
+            },
+        },
+    }
+
+    (mapping_dir / "current.json").write_text(json.dumps(mapping))
+
+    schema_dir = tmp_path / "snapshots" / "orders"
+    schema_dir.mkdir(parents=True)
+
+    (schema_dir / "orders.json").write_text(json.dumps({
+        "version": 1,
+        "fixture_count": 1,
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [
+                    "b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"
+                ],
+            }
+        },
+    }))
+
+    registry_dir = tmp_path / ".graft"
+    registry_dir.mkdir()
+
+    (registry_dir / "contracts.json").write_text(json.dumps({
+        "orders/orders": {
+            "provider": "orders",
+            "endpoint": "orders",
+            "schema": "snapshots/orders/orders.json",
+        }
+    }))
+
+    class FakeProvider:
+        def fetch(self, url):
+            return {
+                "status": 200,
+                "headers": {},
+                "body": {},
+            }
+
+    result = fetch_and_heal(
+        tmp_path,
+        "orders",
+        "orders",
+        FakeProvider(),
+        "https://provider.test/orders/1001",
+    )
+
+    assert result["healing"]["status"] == "unsafe"
+    assert result["healing"]["version"] == 4
+
+    active = load_active_mapping(tmp_path, "orders")
+    assert active["version"] == 4
+    assert active["fields"]["total"]["path"] == "$.total"
