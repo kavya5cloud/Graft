@@ -906,3 +906,50 @@ def test_runtime_fetch_and_normalize(tmp_path):
         "total": "42.50",
         "order_id": "ord_1001",
     }
+
+
+def test_public_graft_api(tmp_path):
+    from graft import Graft
+
+    mapping_dir = tmp_path / "mappings" / "orders"
+    mapping_dir.mkdir(parents=True)
+
+    (mapping_dir / "current.json").write_text(json.dumps({
+        "version": 3,
+        "fields": {
+            "total": {
+                "path": "$.summary.total",
+                "transform": "identity",
+            },
+        },
+    }))
+
+    class FakeProvider:
+        def fetch(self, url):
+            return {
+                "status": 200,
+                "headers": {},
+                "body": {
+                    "summary": {
+                        "total": "42.50",
+                    },
+                },
+            }
+
+    import graft.api
+
+    original = graft.api.get_provider
+    graft.api.get_provider = lambda _: FakeProvider()
+
+    try:
+        result = Graft(tmp_path).request(
+            "orders",
+            "https://provider.test/orders/1001",
+        )
+    finally:
+        graft.api.get_provider = original
+
+    assert result["status"] == 200
+    assert result["data"] == {
+        "total": "42.50",
+    }
