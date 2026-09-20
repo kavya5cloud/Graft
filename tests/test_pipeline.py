@@ -953,3 +953,156 @@ def test_public_graft_api(tmp_path):
     assert result["data"] == {
         "total": "42.50",
     }
+
+
+def test_healing_service_accepts_safe_rename():
+    from graft.healing import attempt_heal
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [
+                    "b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"
+                ],
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.grand_total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [
+                    "b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"
+                ],
+            }
+        }
+    }
+
+    mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity",
+            }
+        },
+    }
+
+    result = attempt_heal(
+        old_schema,
+        new_schema,
+        mapping,
+        {"body": {"grand_total": "42.50"}},
+    )
+
+    assert result["status"] == "healed"
+    assert result["candidate"]["version"] == 2
+    assert result["candidate"]["fields"]["total"]["path"] == "$.grand_total"
+
+
+def test_healing_service_rejects_unsafe_addition():
+    from graft.healing import attempt_heal
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+            "$.status": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [],
+            },
+        }
+    }
+
+    mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.total",
+                "transform": "identity",
+            }
+        },
+    }
+
+    result = attempt_heal(
+        old_schema,
+        new_schema,
+        mapping,
+        {"body": {"total": "42.50", "status": "confirmed"}},
+    )
+
+    assert result["status"] == "unsafe"
+    assert result["candidate"] is None
+
+
+def test_healing_service_rejects_failed_candidate():
+    from graft.healing import attempt_heal
+
+    old_schema = {
+        "paths": {
+            "$.total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [
+                    "b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"
+                ],
+            }
+        }
+    }
+
+    new_schema = {
+        "paths": {
+            "$.grand_total": {
+                "types": ["string"],
+                "nullable": False,
+                "presence_rate": 1.0,
+                "value_fingerprint": [
+                    "b1feb099444a4ca5c5f949f5b5a62cc9fba296580b2b4284262e5a6756c53dbc"
+                ],
+            }
+        }
+    }
+
+    mapping = {
+        "version": 1,
+        "fields": {
+            "total": {
+                "path": "$.missing",
+                "transform": "identity",
+            }
+        },
+    }
+
+    result = attempt_heal(
+        old_schema,
+        new_schema,
+        mapping,
+        {"body": {"grand_total": "42.50"}},
+    )
+
+    assert result["status"] == "rejected"
+    assert result["validation"]["valid"] is False

@@ -4,6 +4,7 @@ from .recorder import record_pair
 from .inferencer import infer, load_fixtures
 from .differ import diff
 from .healer import propose
+from .healing import attempt_heal
 from .validator import validate
 from .audit import record_audit
 from .provider import get_provider
@@ -186,29 +187,8 @@ def cmd_heal(a):
     )
 
     old_schema = read_json(old_schema_path)
-    new_schema = infer([read_json(fixture_path)])
-
-    d = diff(old_schema, new_schema)
-
-    write_json(STATE / "last_diff.json", d)
-    write_json(STATE / "latest_schema.json", new_schema)
-
-    if not d["changes"]:
-        print("no drift detected")
-        return
-
-    repairable = {
-        "RENAMED",
-        "MOVED",
-        "RETYPED",
-    }
-
-    if not any(
-        change["kind"] in repairable
-        for change in d["changes"]
-    ):
-        print("drift detected, no safe auto-heal")
-        return
+    fixture = read_json(fixture_path)
+    new_schema = infer([fixture])
 
     mapping_path = (
         ROOT
@@ -222,28 +202,38 @@ def cmd_heal(a):
             f"no current mapping for {a.provider}"
         )
 
-    candidate = propose(
-        read_json(mapping_path),
-        d,
+    result = attempt_heal(
         old_schema,
         new_schema,
-    )
-
-    candidate_path = STATE / "candidate.json"
-    write_json(candidate_path, candidate)
-
-    fixture = read_json(fixture_path)
-
-    result = validate(
         read_json(mapping_path),
-        candidate,
-        [fixture],
+        fixture,
         a.invariant or [],
     )
 
-    print(json.dumps(result, indent=2))
+    write_json(
+        STATE / "last_diff.json",
+        result["drift"],
+    )
+    write_json(
+        STATE / "latest_schema.json",
+        new_schema,
+    )
 
-    if not result["valid"]:
+    if result["status"] == "no_drift":
+        print("no drift detected")
+        return
+
+    if result["status"] == "unsafe":
+        print("drift detected, no safe auto-heal")
+        return
+
+    candidate = result["candidate"]
+    candidate_path = STATE / "candidate.json"
+    write_json(candidate_path, candidate)
+
+    print(json.dumps(result["validation"], indent=2))
+
+    if result["status"] == "rejected":
         print("heal aborted: candidate failed validation")
         raise SystemExit(1)
 
@@ -255,10 +245,9 @@ def cmd_heal(a):
     cmd_apply(apply_args)
 
     print(
-        f"healed {a.provider}/{a.endpoint} "
+        f"healed {a.provider}/{a.endpoint}"
         f"to mapping v{candidate['version']}"
     )
-
 
 def cmd_audit(a):
     path = STATE / "audit.jsonl"
